@@ -1,0 +1,13 @@
+fastapi
+uvicorn[standard]
+sqlalchemy
+asyncpg
+psycopg2-binary
+pyjwt
+passlib[bcrypt]
+python-dotenv
+pydantic[email]
+aiosqlite
+chromadb
+sentence-transformers
+google-genai
