@@ -41,9 +41,7 @@ def login(user: schemas.UserLogin, db: Session = Depends(database.get_db)):
     )
     return {"access_token": access_token, "token_type": "bearer"}
 
-@router.get("/profile", response_model=schemas.UserResponse)
-def get_profile(current_user: models.User = Depends(auth.get_current_user)):
-    return current_user
+
 
 
 # --- MODULE 2 COMPATIBILITY WRAPPER ---
@@ -67,6 +65,9 @@ def get_module2_user(token: str = Depends(auth.oauth2_scheme), db: Session = Dep
     # Fallback to the real auth if a real token is provided
     return auth.get_current_user(token, db)
 
+@router.get("/profile", response_model=schemas.UserResponse)
+def get_profile(current_user: models.User = Depends(get_module2_user)):
+    return current_user
 
 # --- MODULE 2 TICKET ENDPOINTS ---
 

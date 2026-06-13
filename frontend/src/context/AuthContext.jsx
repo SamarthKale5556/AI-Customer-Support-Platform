@@ -46,8 +46,16 @@ export const AuthProvider = ({ children }) => {
       };
       
       localStorage.setItem('token', fakeToken);
-      localStorage.setItem('user', JSON.stringify(mockUser));
-      setUser(mockUser);
+      
+      // Fetch the real user object from the backend so it has a valid database ID
+      try {
+        const response = await api.get('/profile', { headers: { Authorization: `Bearer ${fakeToken}` } });
+        localStorage.setItem('user', JSON.stringify(response.data));
+        setUser(response.data);
+      } catch (err) {
+        localStorage.setItem('user', JSON.stringify(mockUser));
+        setUser(mockUser);
+      }
       
       return { success: true };
     } catch (error) {
