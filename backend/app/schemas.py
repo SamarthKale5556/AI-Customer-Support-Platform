@@ -56,6 +56,7 @@ class MessageResponse(BaseModel):
     id: int
     ticket_id: int
     sender_id: int
+    sender_role: Optional[str] = None
     message: str
     timestamp: datetime
     

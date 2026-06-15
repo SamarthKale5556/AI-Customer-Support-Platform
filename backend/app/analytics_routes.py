@@ -33,6 +33,11 @@ def get_analytics(current_user: models.User = Depends(get_module2_user), db: Ses
         {"issue": "Feature Request", "count": 5}
     ]
     
+    total_ai_replies = db.query(func.count(models.AIMessageData.id)).scalar() or 0
+    escalations = db.query(func.count(models.Message.id)).filter(models.Message.message.like("%AI confidence low%")).scalar() or 0
+    
+    avg_confidence = db.query(func.avg(models.AIMessageData.confidence)).scalar() or 0.0
+    
     return {
         "total": total_tickets,
         "open": open_tickets,
@@ -40,5 +45,10 @@ def get_analytics(current_user: models.User = Depends(get_module2_user), db: Ses
         "pending": pending_tickets,
         "sentiments": sentiment_counts,
         "common_issues": common_issues,
-        "average_resolution_time": "4.5 hours"
+        "average_resolution_time": "4.5 hours",
+        "ai_metrics": {
+            "total_replies": total_ai_replies,
+            "escalations": escalations,
+            "average_confidence": round(avg_confidence, 2)
+        }
     }

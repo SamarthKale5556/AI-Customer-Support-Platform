@@ -1,4 +1,4 @@
-from sqlalchemy import Column, Integer, String, DateTime, ForeignKey, Text
+from sqlalchemy import Column, Integer, String, DateTime, ForeignKey, Text, Float, Boolean
 from sqlalchemy.orm import relationship
 from sqlalchemy.sql import func
 from .database import Base
@@ -45,6 +45,10 @@ class Message(Base):
     ticket = relationship("Ticket", back_populates="messages")
     sender = relationship("User", back_populates="messages")
 
+    @property
+    def sender_role(self):
+        return self.sender.role if self.sender else None
+
 class KnowledgeBase(Base):
     __tablename__ = "knowledge_base"
 
@@ -64,3 +68,19 @@ class AIAnalysis(Base):
     created_at = Column(DateTime(timezone=True), server_default=func.now())
 
     ticket = relationship("Ticket", back_populates="ai_analysis")
+
+class AIMessageData(Base):
+    __tablename__ = "ai_message_data"
+
+    id = Column(Integer, primary_key=True, index=True)
+    message_id = Column(Integer, ForeignKey("messages.id"), nullable=False, unique=True)
+    confidence = Column(Float, nullable=True)
+    model_used = Column(String, default="gemini-2.5-flash")
+    auto_generated = Column(Boolean, default=True)
+
+class TicketSettings(Base):
+    __tablename__ = "ticket_settings"
+
+    id = Column(Integer, primary_key=True, index=True)
+    ticket_id = Column(Integer, ForeignKey("tickets.id"), nullable=False, unique=True)
+    disable_ai_auto_reply = Column(Boolean, default=False)

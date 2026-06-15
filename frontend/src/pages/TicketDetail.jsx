@@ -1,7 +1,7 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { useParams, Link } from 'react-router-dom';
 import { useAuth } from '../context/AuthContext';
-import { ArrowLeft, Send, User, Clock, CheckCircle2, Circle, MoreVertical, Wifi, WifiOff, Sparkles, MessageSquare, Activity, FileText } from 'lucide-react';
+import { ArrowLeft, Send, User, Clock, CheckCircle2, Circle, MoreVertical, Wifi, WifiOff, Sparkles, MessageSquare, Activity, FileText, Settings2, ShieldAlert } from 'lucide-react';
 import api from '../api';
 import { toast } from 'react-hot-toast';
 
@@ -20,6 +20,8 @@ export default function TicketDetail() {
   const [sentiment, setSentiment] = useState(null);
   const [summary, setSummary] = useState(null);
   const [isAiLoading, setIsAiLoading] = useState(false);
+  const [aiAutoReplyEnabled, setAiAutoReplyEnabled] = useState(true);
+  const [isTyping, setIsTyping] = useState(false);
 
   const scrollToBottom = () => {
     messagesEndRef.current?.scrollIntoView({ behavior: "smooth" });
@@ -38,8 +40,14 @@ export default function TicketDetail() {
 
     ws.current.onmessage = (event) => {
       const newMsg = JSON.parse(event.data);
-      setMessages(prev => [...prev, newMsg]);
-      scrollToBottom();
+      if (newMsg.type === "typing") {
+        setIsTyping(true);
+        scrollToBottom();
+      } else {
+        setIsTyping(false);
+        setMessages(prev => [...prev, newMsg]);
+        scrollToBottom();
+      }
     };
 
     ws.current.onclose = () => {
@@ -130,6 +138,16 @@ export default function TicketDetail() {
     setNewMessage(text);
   };
 
+  const toggleAiAutoReply = async () => {
+    try {
+      await api.post(`/tickets/${id}/ai-settings`, { disable_ai_auto_reply: aiAutoReplyEnabled });
+      setAiAutoReplyEnabled(!aiAutoReplyEnabled);
+      toast.success(aiAutoReplyEnabled ? 'AI Auto-reply disabled' : 'AI Auto-reply enabled');
+    } catch (e) {
+      toast.error('Failed to update AI settings');
+    }
+  };
+
   if (!ticket) {
     return <div className="min-h-screen bg-[#0A0A0A] text-white flex items-center justify-center">Loading ticket details...</div>;
   }
@@ -181,20 +199,37 @@ export default function TicketDetail() {
 
           {messages.map((msg) => {
             const isMe = msg.sender_id === (user?.id || 1);
+            const isAi = msg.sender_role === 'AI';
+            const isSystem = msg.sender_role === 'System';
+
+            if (isSystem) {
+              return (
+                <div key={msg.id} className="flex justify-center my-4">
+                  <div className="bg-red-500/10 border border-red-500/20 text-red-400 px-4 py-2 rounded-xl text-sm flex items-center gap-2 shadow-sm">
+                    <ShieldAlert size={16} />
+                    <span>{msg.message}</span>
+                  </div>
+                </div>
+              );
+            }
+
             return (
               <div key={msg.id} className={`flex gap-4 ${isMe ? 'justify-end' : 'justify-start'}`}>
                 {!isMe && (
-                  <div className="flex-shrink-0 h-10 w-10 bg-blue-500/20 border border-blue-500/50 rounded-full flex items-center justify-center mt-auto">
-                    <User size={20} className="text-blue-400" />
+                  <div className={`flex-shrink-0 h-10 w-10 ${isAi ? 'bg-purple-500/20 border-purple-500/50' : 'bg-blue-500/20 border-blue-500/50'} border rounded-full flex items-center justify-center mt-auto`}>
+                    {isAi ? <Sparkles size={18} className="text-purple-400" /> : <User size={20} className="text-blue-400" />}
                   </div>
                 )}
                 
                 <div className={`flex flex-col ${isMe ? 'items-end' : 'items-start'} max-w-[80%]`}>
+                  {isAi && <span className="text-xs text-purple-400 font-medium mb-1 ml-1 flex items-center gap-1"><Sparkles size={10} /> AI Assistant</span>}
                   <div 
                     className={`px-5 py-3 rounded-2xl ${
                       isMe 
                         ? 'bg-blue-600 text-white rounded-br-none' 
-                        : 'bg-white/10 border border-white/5 text-white rounded-bl-none shadow-sm'
+                        : isAi 
+                          ? 'bg-purple-900/40 border border-purple-500/30 text-white rounded-bl-none shadow-sm'
+                          : 'bg-white/10 border border-white/5 text-white rounded-bl-none shadow-sm'
                     }`}
                   >
                     <p className="whitespace-pre-wrap">{msg.message}</p>
@@ -213,6 +248,23 @@ export default function TicketDetail() {
               </div>
             );
           })}
+          
+          {isTyping && (
+            <div className="flex gap-4 justify-start">
+              <div className="flex-shrink-0 h-10 w-10 bg-purple-500/20 border-purple-500/50 border rounded-full flex items-center justify-center mt-auto">
+                <Sparkles size={18} className="text-purple-400" />
+              </div>
+              <div className="flex flex-col items-start max-w-[80%]">
+                <span className="text-xs text-purple-400 font-medium mb-1 ml-1 flex items-center gap-1"><Sparkles size={10} /> AI Assistant</span>
+                <div className="px-5 py-4 rounded-2xl bg-purple-900/40 border border-purple-500/30 text-white rounded-bl-none shadow-sm flex items-center gap-1.5">
+                  <div className="w-2 h-2 bg-purple-400 rounded-full animate-bounce" style={{ animationDelay: '0ms' }}></div>
+                  <div className="w-2 h-2 bg-purple-400 rounded-full animate-bounce" style={{ animationDelay: '150ms' }}></div>
+                  <div className="w-2 h-2 bg-purple-400 rounded-full animate-bounce" style={{ animationDelay: '300ms' }}></div>
+                </div>
+              </div>
+            </div>
+          )}
+          
           <div ref={messagesEndRef} />
         </main>
 
@@ -248,9 +300,18 @@ export default function TicketDetail() {
       {/* AI Assistant Sidebar (Agents/Admins Only) */}
       {isAgent && (
         <div className="w-full md:w-80 border-l border-white/10 bg-white/5 p-6 flex flex-col gap-6 overflow-y-auto max-h-screen hidden md:flex">
-          <div className="flex items-center gap-2 text-xl font-bold text-purple-400">
-            <Sparkles className="w-6 h-6" />
-            AI Assistant
+          <div className="flex items-center justify-between">
+            <div className="flex items-center gap-2 text-xl font-bold text-purple-400">
+              <Sparkles className="w-6 h-6" />
+              AI Assistant
+            </div>
+            <button 
+              onClick={toggleAiAutoReply}
+              title={aiAutoReplyEnabled ? "Disable AI Auto-reply" : "Enable AI Auto-reply"}
+              className={`p-2 rounded-xl transition ${aiAutoReplyEnabled ? 'bg-purple-500/20 text-purple-400' : 'bg-white/5 text-gray-500'}`}
+            >
+              <Settings2 size={18} />
+            </button>
           </div>
 
           {/* Sentiment Analysis */}

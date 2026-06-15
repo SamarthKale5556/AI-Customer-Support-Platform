@@ -97,3 +97,50 @@ def generate_embedding(text: str) -> list[float]:
     except Exception as e:
         print("Failed to generate embedding:", e)
         return []
+
+def generate_auto_reply(ticket_context: str) -> dict:
+    """Generates an automatic reply and returns a confidence score."""
+    client = get_client()
+    prompt = f"""
+    You are an AI customer support assistant acting as the first-line support agent.
+    Based on the following ticket context, generate a helpful, polite, and accurate reply to the customer's last message.
+    
+    RESPONSE GUIDELINES:
+    - Keep your response natural and conversational, but ensure you are comprehensive.
+    - If there are "Relevant Knowledge Base Articles" provided in the context, strictly use them to answer the customer's question. You MUST include ALL the details, conditions, and instructions mentioned in the article so the customer gets complete information. Do not omit any steps or policies.
+    - ALWAYS attempt to answer the customer or ask a clarifying question first.
+    - If you are uncertain, respond naturally asking for details (e.g. "I can help with that. Could you provide your order ID?"). Do not escalate immediately.
+    
+    ESCALATION GUIDELINES:
+    - You must determine if the ticket should be escalated to a human agent.
+    - ONLY set "escalate" to true if:
+      1. The customer explicitly asks for a human agent or requests escalation.
+      2. The issue remains unresolved after multiple AI attempts to assist.
+    - If you escalate, your reply MUST be: "I wasn't able to fully resolve this issue. I've forwarded your ticket to a support agent who will assist you shortly."
+    
+    Context:
+    {ticket_context}
+    
+    Return the output strictly as a JSON object with keys 'reply' (string) and 'escalate' (boolean). Do not wrap it in markdown codeblocks.
+    """
+    
+    try:
+        response = client.models.generate_content(
+            model='gemini-2.5-flash-lite',
+            contents=prompt,
+            config={"response_mime_type": "application/json"},
+        )
+        text = response.text.strip()
+        parsed = json.loads(text)
+        return {
+            "reply": parsed.get("reply", ""),
+            "escalate": parsed.get("escalate", False),
+            "confidence": 1.0
+        }
+    except Exception as e:
+        print("Failed to generate auto reply:", e)
+        return {
+            "reply": "I'm currently experiencing a system error. I've forwarded your ticket to a support agent who will assist you shortly.",
+            "escalate": True,
+            "confidence": 1.0
+        }
