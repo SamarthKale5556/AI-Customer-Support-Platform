@@ -24,14 +24,16 @@ This platform doesn't just use AI blindly; it utilizes **Retrieval-Augmented Gen
 ## ✨ Core Features
 
 ### 🤖 AI-Augmented Workflows
-- **Intelligent Reply Suggestions:** Context-aware, professional, and polite reply suggestions generated instantly for agents.
-- **RAG Knowledge Base:** Upload your company documents. The AI searches the vector database (ChromaDB) to accurately answer specific business questions.
-- **Sentiment Analysis:** Automatically detects if a ticket is *Positive*, *Neutral*, or *Negative*, allowing agents to prioritize angry customers.
+- **Fully Autonomous AI Agent:** Operates as your first-line support. Automatically responds to customer messages in real-time (< 2s latency) using up-to-date company policies.
+- **Smart Human Handoff:** The AI seamlessly escalates tickets to human agents when it encounters complex issues or when a user explicitly asks for human support.
+- **RAG Knowledge Base:** Upload your company documents. The AI searches the vector database (ChromaDB) to ground its responses and answer specific business questions accurately.
+- **Intelligent Reply Suggestions:** Context-aware, professional, and polite reply suggestions generated instantly for agents to manually approve.
+- **Sentiment Analysis:** Automatically detects if a ticket is *Positive*, *Neutral*, or *Negative*, allowing agents to prioritize frustrated customers.
 - **One-Click Summarization:** Instantly generate concise, bulleted summaries of long, complex ticket conversations.
 
 ### ⚡ Real-Time Infrastructure
-- **Live Chat:** WebSocket-based instant messaging between customers and support agents.
-- **Global Notifications:** Instant broadcasts for new tickets, reassignments, closures, and critical sentiment shifts.
+- **Live Chat & Typing Indicators:** WebSocket-based instant messaging with real-time "AI is typing..." animations for a natural user experience.
+- **Global Notifications:** Instant broadcasts for new tickets, AI escalations, reassignments, closures, and critical sentiment shifts.
 
 ### 📊 Powerful Analytics
 - **Live Dashboard:** Real-time KPI cards displaying ticket volume, resolution times, and sentiment distributions.
