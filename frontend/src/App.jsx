@@ -7,17 +7,18 @@ import Dashboard from './pages/Dashboard';
 import { Toaster, toast } from 'react-hot-toast';
 import { useEffect } from 'react';
 
-import Tickets from './pages/Tickets';
-import TicketDetail from './pages/TicketDetail';
+import Workspace from './pages/Workspace';
 import AgentDashboard from './pages/AgentDashboard';
 import AdminDashboard from './pages/AdminDashboard';
 import KnowledgeBase from './pages/KnowledgeBase';
+import Layout from './components/layout/Layout';
+import AuthLayout from './components/layout/AuthLayout';
 
 const ProtectedRoute = ({ children }) => {
   const { user, loading } = useAuth();
-  if (loading) return <div className="min-h-screen flex items-center justify-center">Loading...</div>;
+  if (loading) return <div className="min-h-screen bg-background flex items-center justify-center">Loading...</div>;
   if (!user) return <Navigate to="/login" />;
-  return children;
+  return <Layout>{children}</Layout>;
 };
 
 const GlobalNotificationListener = () => {
@@ -46,7 +47,15 @@ const GlobalNotificationListener = () => {
     };
   }, [user]);
 
-  return <Toaster position="top-right" />;
+  return <Toaster position="top-right" 
+    toastOptions={{
+      style: {
+        background: '#18181b', // zinc-900
+        color: '#f4f4f5',
+        border: '1px solid #27272a'
+      }
+    }}
+  />;
 };
 
 function App() {
@@ -56,8 +65,10 @@ function App() {
       <Router>
         <Routes>
           <Route path="/" element={<Navigate to="/login" />} />
-          <Route path="/login" element={<Login />} />
-          <Route path="/register" element={<Navigate to="/login" />} />
+          <Route element={<AuthLayout />}>
+            <Route path="/login" element={<Login />} />
+            <Route path="/register" element={<Register />} />
+          </Route>
           <Route path="/dashboard" element={
             <ProtectedRoute>
               <RoleBasedDashboard />
@@ -65,12 +76,12 @@ function App() {
           } />
           <Route path="/tickets" element={
             <ProtectedRoute>
-              <Tickets />
+              <Workspace />
             </ProtectedRoute>
           } />
           <Route path="/tickets/:id" element={
             <ProtectedRoute>
-              <TicketDetail />
+              <Workspace />
             </ProtectedRoute>
           } />
           <Route path="/kb" element={

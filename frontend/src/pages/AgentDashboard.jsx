@@ -1,119 +1,142 @@
 import React, { useState, useEffect } from 'react';
 import { useAuth } from '../context/AuthContext';
-import { Ticket, Users, Activity, CheckCircle2, Circle, Clock } from 'lucide-react';
-import { Link } from 'react-router-dom';
+import { 
+  Ticket, CheckCircle2, Circle, Sparkles, AlertTriangle
+} from 'lucide-react';
+import { AreaChart, Area, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer } from 'recharts';
 import api from '../api';
+import { cn } from '../lib/utils';
+import { Link } from 'react-router-dom';
 
 export default function AgentDashboard() {
-  const { user, logout } = useAuth();
+  const { user } = useAuth();
   const [tickets, setTickets] = useState([]);
+  const [metrics, setMetrics] = useState({
+    totalTickets: 0,
+    openTickets: 0,
+    resolvedTickets: 0,
+    aiResolved: 0,
+    escalations: 0,
+    chartData: []
+  });
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
-    fetchTickets();
+    fetchData();
   }, []);
 
-  const fetchTickets = async () => {
+  const fetchData = async () => {
     try {
-      const response = await api.get('/tickets');
-      setTickets(response.data);
+      const [ticketsRes, metricsRes] = await Promise.all([
+        api.get('/tickets'),
+        api.get('/dashboard-metrics')
+      ]);
+      setTickets(ticketsRes.data);
+      setMetrics(metricsRes.data);
     } catch (error) {
-      console.error("Error fetching tickets", error);
+      console.error("Error fetching dashboard data", error);
     } finally {
       setLoading(false);
     }
   };
 
-  const assignTicket = async (ticketId) => {
-    try {
-      await api.put(`/tickets/${ticketId}`, { assigned_to: user.id });
-      fetchTickets();
-    } catch (error) {
-      console.error("Error assigning ticket", error);
-    }
-  };
-
-  const getStatusIcon = (status) => {
-    switch (status) {
-      case 'Closed': return <CheckCircle2 className="w-5 h-5 text-green-500" />;
-      case 'Pending': return <Clock className="w-5 h-5 text-yellow-500" />;
-      default: return <Circle className="w-5 h-5 text-blue-500" />;
-    }
-  };
+  const KpiCard = ({ title, value, icon: Icon, colorClass }) => (
+    <div className="bg-surface border border-border p-5 rounded-2xl flex flex-col justify-between">
+      <div className="flex justify-between items-start mb-4">
+        <span className="text-textMuted text-sm font-medium">{title}</span>
+        <div className={cn("p-2 rounded-lg", colorClass)}>
+          <Icon className="w-4 h-4" />
+        </div>
+      </div>
+      <div>
+        <h3 className="text-2xl font-bold text-white tracking-tight">{value}</h3>
+      </div>
+    </div>
+  );
 
   return (
-    <div className="min-h-screen bg-[#0A0A0A] text-white p-8">
-      <div className="max-w-6xl mx-auto space-y-8">
+    <div className="h-full bg-background text-textMain overflow-y-auto">
+      <div className="max-w-7xl mx-auto p-8 space-y-8">
         
-        <header className="flex justify-between items-center pb-6 border-b border-white/10">
+        <header className="flex justify-between items-center">
           <div>
-            <h1 className="text-3xl font-bold">Agent Workspace</h1>
-            <p className="text-gray-400 mt-2">Welcome back, {user?.name}</p>
+            <h1 className="text-2xl font-bold text-white tracking-tight">Overview</h1>
+            <p className="text-textMuted text-sm mt-1">Monitor support operations and AI performance.</p>
           </div>
-          <div className="flex gap-4 items-center">
-            <div className="bg-blue-500/10 text-blue-500 px-4 py-2 rounded-xl flex items-center gap-2 font-medium">
-              <Activity className="w-5 h-5" /> Active Status
-            </div>
-            <button onClick={logout} className="px-4 py-2 bg-red-500/10 text-red-500 hover:bg-red-500/20 rounded-xl font-medium transition-colors">
-              Sign Out
-            </button>
+          <div className="flex gap-3 items-center">
+            <span className="flex items-center gap-2 text-sm text-textMuted bg-surface border border-border px-3 py-1.5 rounded-lg">
+              <span className="w-2 h-2 rounded-full bg-success animate-pulse"></span>
+              Live Data
+            </span>
           </div>
         </header>
 
-        <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
-          <div className="bg-white/5 border border-white/10 rounded-2xl p-6">
-            <div className="flex items-center gap-4 text-gray-400 mb-4">
-              <Ticket className="w-6 h-6 text-purple-400" />
-              <h2 className="font-semibold text-lg">My Queue</h2>
-            </div>
-            <p className="text-4xl font-bold">{tickets.filter(t => t.assigned_to === user?.id).length}</p>
-          </div>
-          <div className="bg-white/5 border border-white/10 rounded-2xl p-6">
-            <div className="flex items-center gap-4 text-gray-400 mb-4">
-              <Users className="w-6 h-6 text-blue-400" />
-              <h2 className="font-semibold text-lg">Unassigned</h2>
-            </div>
-            <p className="text-4xl font-bold">{tickets.filter(t => !t.assigned_to).length}</p>
-          </div>
+        {/* Top KPIs */}
+        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-5 gap-4">
+          <KpiCard title="Total Tickets" value={metrics.totalTickets} icon={Ticket} colorClass="bg-blue-500/10 text-blue-500" />
+          <KpiCard title="Open Tickets" value={metrics.openTickets} icon={Circle} colorClass="bg-warning/10 text-warning" />
+          <KpiCard title="Resolved Tickets" value={metrics.resolvedTickets} icon={CheckCircle2} colorClass="bg-success/10 text-success" />
+          <KpiCard title="AI Auto-Resolved" value={metrics.aiResolved} icon={Sparkles} colorClass="bg-primary/10 text-primary" />
+          <KpiCard title="Escalations" value={metrics.escalations} icon={AlertTriangle} colorClass="bg-danger/10 text-danger" />
         </div>
 
-        <div className="bg-white/5 border border-white/10 rounded-2xl p-6">
-          <h2 className="text-xl font-bold mb-6">Global Ticket Queue</h2>
-          {loading ? (
-            <div className="text-center py-10 text-gray-400">Loading tickets...</div>
-          ) : tickets.length === 0 ? (
-            <div className="text-center py-10 text-gray-400">No tickets found.</div>
-          ) : (
-            <div className="space-y-4">
-              {tickets.map(ticket => (
-                <div key={ticket.id} className="bg-black/40 border border-white/5 rounded-xl p-5 flex flex-col md:flex-row items-center justify-between gap-4 transition hover:bg-white/5">
-                  <div className="flex items-center gap-4 flex-1">
-                    {getStatusIcon(ticket.status)}
-                    <div>
-                      <h3 className="font-semibold text-lg">{ticket.title}</h3>
-                      <p className="text-gray-400 text-sm">Priority: {ticket.priority} • Ticket #{ticket.id}</p>
+        <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
+          {/* Main Chart */}
+          <div className="lg:col-span-2 bg-surface border border-border rounded-2xl p-6">
+            <h2 className="text-sm font-semibold text-white mb-6">Volume vs Resolution (Last 7 Days)</h2>
+            <div className="h-[300px] w-full">
+              <ResponsiveContainer width="100%" height="100%">
+                <AreaChart data={metrics.chartData} margin={{ top: 10, right: 30, left: 0, bottom: 0 }}>
+                  <defs>
+                    <linearGradient id="colorTickets" x1="0" y1="0" x2="0" y2="1">
+                      <stop offset="5%" stopColor="#3b82f6" stopOpacity={0.3}/>
+                      <stop offset="95%" stopColor="#3b82f6" stopOpacity={0}/>
+                    </linearGradient>
+                    <linearGradient id="colorResolved" x1="0" y1="0" x2="0" y2="1">
+                      <stop offset="5%" stopColor="#6d28d9" stopOpacity={0.3}/>
+                      <stop offset="95%" stopColor="#6d28d9" stopOpacity={0}/>
+                    </linearGradient>
+                  </defs>
+                  <CartesianGrid strokeDasharray="3 3" stroke="#27272a" vertical={false} />
+                  <XAxis dataKey="name" stroke="#a1a1aa" fontSize={12} tickLine={false} axisLine={false} />
+                  <YAxis stroke="#a1a1aa" fontSize={12} tickLine={false} axisLine={false} />
+                  <Tooltip 
+                    contentStyle={{ backgroundColor: '#18181b', borderColor: '#27272a', borderRadius: '8px' }}
+                    itemStyle={{ color: '#f4f4f5' }}
+                  />
+                  <Area type="monotone" dataKey="tickets" stroke="#3b82f6" fillOpacity={1} fill="url(#colorTickets)" />
+                  <Area type="monotone" dataKey="resolved" stroke="#6d28d9" fillOpacity={1} fill="url(#colorResolved)" />
+                </AreaChart>
+              </ResponsiveContainer>
+            </div>
+          </div>
+
+          {/* Unassigned Queue */}
+          <div className="bg-surface border border-border rounded-2xl p-6 flex flex-col">
+            <div className="flex items-center justify-between mb-6">
+              <h2 className="text-sm font-semibold text-white">Recent Queue</h2>
+              <Link to="/tickets" className="text-xs text-primary hover:text-primaryHover font-medium">View All</Link>
+            </div>
+            
+            <div className="flex-1 overflow-y-auto space-y-3">
+              {loading ? (
+                <div className="text-sm text-textMuted">Loading...</div>
+              ) : tickets.slice(0, 6).map(ticket => (
+                <Link key={ticket.id} to={`/tickets/${ticket.id}`} className="block group">
+                  <div className="p-3 bg-background border border-border group-hover:border-primary/50 rounded-xl transition">
+                    <div className="flex justify-between items-start mb-1">
+                      <span className="text-sm font-medium text-white truncate max-w-[180px]">{ticket.title}</span>
+                      <span className={cn(
+                        "text-[10px] font-bold px-1.5 py-0.5 rounded uppercase",
+                        ticket.status === 'Open' ? "bg-warning/10 text-warning" : "bg-success/10 text-success"
+                      )}>{ticket.status}</span>
                     </div>
+                    <p className="text-xs text-textMuted line-clamp-1">{ticket.description}</p>
                   </div>
-                  
-                  <div className="flex items-center gap-3">
-                    {ticket.assigned_to === user?.id ? (
-                      <span className="bg-green-500/20 text-green-400 px-3 py-1 rounded-full text-xs font-medium border border-green-500/20">My Ticket</span>
-                    ) : !ticket.assigned_to ? (
-                      <button onClick={() => assignTicket(ticket.id)} className="bg-blue-600 hover:bg-blue-700 text-white px-4 py-2 rounded-xl text-sm transition">
-                        Assign to Me
-                      </button>
-                    ) : (
-                      <span className="text-gray-500 text-sm">Assigned</span>
-                    )}
-                    
-                    <Link to={`/tickets/${ticket.id}`} className="bg-white/10 hover:bg-white/20 text-white px-4 py-2 rounded-xl text-sm transition font-medium">
-                      View Chat
-                    </Link>
-                  </div>
-                </div>
+                </Link>
               ))}
             </div>
-          )}
+          </div>
         </div>
 
       </div>

@@ -35,6 +35,12 @@ This platform doesn't just use AI blindly; it utilizes **Retrieval-Augmented Gen
 - **Live Chat & Typing Indicators:** WebSocket-based instant messaging with real-time "AI is typing..." animations for a natural user experience.
 - **Global Notifications:** Instant broadcasts for new tickets, AI escalations, reassignments, closures, and critical sentiment shifts.
 
+### 🔒 Enterprise-Grade Security & Auth
+- **Robust JWT Authentication:** Secure session management using industry-standard JWT Access and Refresh tokens.
+- **Bcrypt Password Hashing:** Direct integration with Bcrypt for uncompromised password storage and verification.
+- **Role-Based Access Control (RBAC):** Strict isolation between Customers, Agents, and Admins to ensure data privacy and authorized interactions.
+- **Premium Auth UI:** A split-screen, highly dynamic, $100M SaaS-style login and registration experience featuring smooth animations and immersive aesthetics.
+
 ### 📊 Powerful Analytics
 - **Live Dashboard:** Real-time KPI cards displaying ticket volume, resolution times, and sentiment distributions.
 - **Interactive Charts:** Beautiful Recharts-powered pie and bar graphs.

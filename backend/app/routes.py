@@ -9,6 +9,8 @@ import asyncio
 import os
 from datetime import datetime
 
+import re
+
 router = APIRouter()
 
 # --- ORIGINAL MODULE 1 ENDPOINTS ---
@@ -17,6 +19,9 @@ def register(user: schemas.UserCreate, db: Session = Depends(database.get_db)):
     db_user = db.query(models.User).filter(models.User.email == user.email).first()
     if db_user:
         raise HTTPException(status_code=400, detail="Email already registered")
+    
+    if len(user.password) < 8 or not re.search(r"[A-Z]", user.password) or not re.search(r"\d", user.password):
+        raise HTTPException(status_code=400, detail="Password must be at least 8 characters, contain an uppercase letter and a number")
     
     hashed_password = auth.get_password_hash(user.password)
     new_user = models.User(
@@ -38,45 +43,26 @@ def login(user: schemas.UserLogin, db: Session = Depends(database.get_db)):
     
     if not auth.verify_password(user.password, db_user.password_hash):
         raise HTTPException(status_code=400, detail="Invalid Credentials")
-    
-    access_token_expires = timedelta(minutes=auth.ACCESS_TOKEN_EXPIRE_MINUTES)
-    access_token = auth.create_access_token(
-        data={"sub": db_user.email}, expires_delta=access_token_expires
-    )
-    return {"access_token": access_token, "token_type": "bearer"}
+    payload = {
+        "user_id": db_user.id,
+        "email": db_user.email,
+        "role": db_user.role
+    }
+    access_token = auth.create_access_token(data=payload)
+    refresh_token = auth.create_refresh_token(data=payload)
+    return {"access_token": access_token, "refresh_token": refresh_token, "token_type": "bearer"}
 
 
 
-
-# --- MODULE 2 COMPATIBILITY WRAPPER ---
-# This wrapper handles the frontend mock token without touching the original JWT logic.
-def get_module2_user(token: str = Depends(auth.oauth2_scheme), db: Session = Depends(database.get_db)):
-    if token.startswith("direct-login-token-"):
-        parts = token.split("-")
-        role = "Customer"
-        if len(parts) >= 5:
-            role = parts[3]
-            
-        email = f"mock{role.lower()}@example.com"
-        user = db.query(models.User).filter(models.User.email == email).first()
-        if not user:
-            user = models.User(name=f"Mock {role}", email=email, password_hash="dummy", role=role)
-            db.add(user)
-            db.commit()
-            db.refresh(user)
-        return user
-    
-    # Fallback to the real auth if a real token is provided
-    return auth.get_current_user(token, db)
 
 @router.get("/profile", response_model=schemas.UserResponse)
-def get_profile(current_user: models.User = Depends(get_module2_user)):
+def get_profile(current_user: models.User = Depends(auth.get_current_user)):
     return current_user
 
 # --- MODULE 2 TICKET ENDPOINTS ---
 
 @router.post("/tickets", response_model=schemas.TicketResponse, status_code=status.HTTP_201_CREATED)
-def create_ticket(ticket: schemas.TicketCreate, background_tasks: BackgroundTasks, current_user: models.User = Depends(get_module2_user), db: Session = Depends(database.get_db)):
+def create_ticket(ticket: schemas.TicketCreate, background_tasks: BackgroundTasks, current_user: models.User = Depends(auth.get_current_user), db: Session = Depends(database.get_db)):
     new_ticket = models.Ticket(
         user_id=current_user.id,
         title=ticket.title,
@@ -100,14 +86,14 @@ def create_ticket(ticket: schemas.TicketCreate, background_tasks: BackgroundTask
     return new_ticket
 
 @router.get("/tickets", response_model=List[schemas.TicketResponse])
-def get_tickets(current_user: models.User = Depends(get_module2_user), db: Session = Depends(database.get_db)):
-    if current_user.role in ["Admin", "Agent"]:
-        return db.query(models.Ticket).all()
-    else:
-        return db.query(models.Ticket).filter(models.Ticket.user_id == current_user.id).all()
+def get_tickets(current_user: models.User = Depends(auth.get_current_user), db: Session = Depends(database.get_db)):
+    query = db.query(models.Ticket)
+    if current_user.role not in ["Admin", "Agent"]:
+        query = query.filter(models.Ticket.user_id == current_user.id)
+    return query.order_by(models.Ticket.created_at.desc()).all()
 
 @router.get("/tickets/{ticket_id}", response_model=schemas.TicketResponse)
-def get_ticket(ticket_id: int, current_user: models.User = Depends(get_module2_user), db: Session = Depends(database.get_db)):
+def get_ticket(ticket_id: int, current_user: models.User = Depends(auth.get_current_user), db: Session = Depends(database.get_db)):
     ticket = db.query(models.Ticket).filter(models.Ticket.id == ticket_id).first()
     if not ticket:
         raise HTTPException(status_code=404, detail="Ticket not found")
@@ -118,7 +104,7 @@ def get_ticket(ticket_id: int, current_user: models.User = Depends(get_module2_u
     return ticket
 
 @router.put("/tickets/{ticket_id}", response_model=schemas.TicketResponse)
-def update_ticket(ticket_id: int, ticket_update: schemas.TicketUpdate, background_tasks: BackgroundTasks, current_user: models.User = Depends(get_module2_user), db: Session = Depends(database.get_db)):
+def update_ticket(ticket_id: int, ticket_update: schemas.TicketUpdate, background_tasks: BackgroundTasks, current_user: models.User = Depends(auth.get_current_user), db: Session = Depends(database.get_db)):
     ticket = db.query(models.Ticket).filter(models.Ticket.id == ticket_id).first()
     if not ticket:
         raise HTTPException(status_code=404, detail="Ticket not found")
@@ -158,7 +144,7 @@ def update_ticket(ticket_id: int, ticket_update: schemas.TicketUpdate, backgroun
     return ticket
 
 @router.delete("/tickets/{ticket_id}", status_code=status.HTTP_204_NO_CONTENT)
-def delete_ticket(ticket_id: int, current_user: models.User = Depends(get_module2_user), db: Session = Depends(database.get_db)):
+def delete_ticket(ticket_id: int, current_user: models.User = Depends(auth.get_current_user), db: Session = Depends(database.get_db)):
     if current_user.role != "Admin":
         raise HTTPException(status_code=403, detail="Only Admins can delete tickets")
         
@@ -173,7 +159,7 @@ class AISettingsUpdate(schemas.BaseModel):
     disable_ai_auto_reply: bool
 
 @router.post("/tickets/{ticket_id}/ai-settings")
-def update_ticket_ai_settings(ticket_id: int, settings: AISettingsUpdate, current_user: models.User = Depends(get_module2_user), db: Session = Depends(database.get_db)):
+def update_ticket_ai_settings(ticket_id: int, settings: AISettingsUpdate, current_user: models.User = Depends(auth.get_current_user), db: Session = Depends(database.get_db)):
     if current_user.role not in ["Agent", "Admin"]:
         raise HTTPException(status_code=403, detail="Not authorized")
         
@@ -188,8 +174,73 @@ def update_ticket_ai_settings(ticket_id: int, settings: AISettingsUpdate, curren
 
 # --- MODULE 2 MESSAGES REST ENDPOINTS ---
 
+@router.get("/dashboard-metrics")
+def get_dashboard_metrics(current_user: models.User = Depends(auth.get_current_user), db: Session = Depends(database.get_db)):
+    if current_user.role not in ["Agent", "Admin"]:
+        raise HTTPException(status_code=403, detail="Not authorized")
+    
+    total_tickets = db.query(models.Ticket).count()
+    open_tickets = db.query(models.Ticket).filter(models.Ticket.status == "Open").count()
+    resolved_tickets = db.query(models.Ticket).filter(models.Ticket.status == "Closed").count()
+    
+    # Escalations: tickets that are assigned to a human agent
+    escalations = db.query(models.Ticket).filter(models.Ticket.assigned_to != None).count()
+    
+    # AI Auto-Resolved: Tickets that are Closed and have at least one message from the AI User
+    # Alternatively, tickets where AI settings are active, but simpler to check messages
+    ai_user = db.query(models.User).filter_by(role="AI").first()
+    ai_resolved = 0
+    if ai_user:
+        ai_resolved = db.query(models.Ticket).join(models.Message).filter(
+            models.Ticket.status == "Closed",
+            models.Message.sender_id == ai_user.id
+        ).distinct().count()
+        
+    # Chart Data (last 7 days volume)
+    # Simple aggregation by date
+    from sqlalchemy import func
+    from datetime import datetime, timedelta
+    
+    seven_days_ago = datetime.utcnow() - timedelta(days=7)
+    
+    # Fetch all tickets from last 7 days to process in python for simplicity
+    recent_tickets = db.query(models.Ticket).filter(models.Ticket.created_at >= seven_days_ago).all()
+    
+    chart_data = []
+    for i in range(6, -1, -1):
+        target_date = (datetime.utcnow() - timedelta(days=i)).date()
+        day_name = target_date.strftime("%a")
+        
+        created_that_day = sum(1 for t in recent_tickets if t.created_at.date() == target_date)
+        resolved_that_day = sum(1 for t in recent_tickets if t.status == "Closed" and t.created_at.date() == target_date)
+        
+        chart_data.append({
+            "name": day_name,
+            "tickets": created_that_day,
+            "resolved": resolved_that_day
+        })
+    
+    if len(recent_tickets) == 0:
+        # Provide dummy data structure with 0s to keep UI intact if no data
+        for i in range(6, -1, -1):
+            target_date = (datetime.utcnow() - timedelta(days=i)).date()
+            chart_data.append({"name": target_date.strftime("%a"), "tickets": 0, "resolved": 0})
+            
+    # De-duplicate dummy logic if no recent tickets (we appended twice)
+    if len(recent_tickets) == 0:
+        chart_data = chart_data[:7]
+
+    return {
+        "totalTickets": total_tickets,
+        "openTickets": open_tickets,
+        "resolvedTickets": resolved_tickets,
+        "aiResolved": ai_resolved,
+        "escalations": escalations,
+        "chartData": chart_data
+    }
+
 @router.get("/messages/{ticket_id}", response_model=List[schemas.MessageResponse])
-def get_messages(ticket_id: int, current_user: models.User = Depends(get_module2_user), db: Session = Depends(database.get_db)):
+def get_messages(ticket_id: int, current_user: models.User = Depends(auth.get_current_user), db: Session = Depends(database.get_db)):
     ticket = db.query(models.Ticket).filter(models.Ticket.id == ticket_id).first()
     if not ticket:
         raise HTTPException(status_code=404, detail="Ticket not found")

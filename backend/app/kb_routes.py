@@ -2,8 +2,7 @@ from fastapi import APIRouter, Depends, HTTPException
 from pydantic import BaseModel
 from sqlalchemy.orm import Session
 from typing import List
-from . import database, models
-from .routes import get_module2_user
+from . import database, models, auth
 from .rag.chroma_setup import ingest_document, search_documents
 from .services.ai_service import get_client
 
@@ -27,7 +26,7 @@ class RAGQuery(BaseModel):
     query: str
 
 @router.post("/kb", response_model=KBItemResponse)
-def create_kb_item(item: KBItemCreate, current_user: models.User = Depends(get_module2_user), db: Session = Depends(database.get_db)):
+def create_kb_item(item: KBItemCreate, current_user: models.User = Depends(auth.get_current_user), db: Session = Depends(database.get_db)):
     if current_user.role != "Admin":
         raise HTTPException(status_code=403, detail="Not authorized")
         
@@ -50,11 +49,11 @@ def create_kb_item(item: KBItemCreate, current_user: models.User = Depends(get_m
     return db_item
 
 @router.get("/kb", response_model=List[KBItemResponse])
-def get_kb_items(current_user: models.User = Depends(get_module2_user), db: Session = Depends(database.get_db)):
-    return db.query(models.KnowledgeBase).all()
+def get_kb_items(current_user: models.User = Depends(auth.get_current_user), db: Session = Depends(database.get_db)):
+    return db.query(models.KnowledgeBase).order_by(models.KnowledgeBase.id.desc()).all()
 
 @router.delete("/kb/{item_id}")
-def delete_kb_item(item_id: int, current_user: models.User = Depends(get_module2_user), db: Session = Depends(database.get_db)):
+def delete_kb_item(item_id: int, current_user: models.User = Depends(auth.get_current_user), db: Session = Depends(database.get_db)):
     if current_user.role != "Admin":
         raise HTTPException(status_code=403, detail="Not authorized")
         
@@ -72,7 +71,7 @@ def delete_kb_item(item_id: int, current_user: models.User = Depends(get_module2
     return {"message": "Deleted"}
 
 @router.post("/kb/ask")
-def ask_knowledge_base(query: RAGQuery, current_user: models.User = Depends(get_module2_user)):
+def ask_knowledge_base(query: RAGQuery, current_user: models.User = Depends(auth.get_current_user)):
     results = search_documents(query.query, n_results=3)
     
     if not results or not results['documents'] or not results['documents'][0]:

@@ -1,13 +1,12 @@
 from fastapi import APIRouter, Depends, HTTPException
 from sqlalchemy.orm import Session
 from sqlalchemy import func
-from . import database, models
-from .routes import get_module2_user
+from . import database, models, auth
 
 router = APIRouter()
 
 @router.get("/analytics")
-def get_analytics(current_user: models.User = Depends(get_module2_user), db: Session = Depends(database.get_db)):
+def get_analytics(current_user: models.User = Depends(auth.get_current_user), db: Session = Depends(database.get_db)):
     if current_user.role not in ["Agent", "Admin"]:
         raise HTTPException(status_code=403, detail="Not authorized")
         

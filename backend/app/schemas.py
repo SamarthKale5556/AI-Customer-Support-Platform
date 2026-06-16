@@ -14,16 +14,17 @@ class UserLogin(BaseModel):
 
 class UserResponse(BaseModel):
     id: int
-    name: str
+    name: Optional[str] = None
     email: EmailStr
     role: str
-    created_at: datetime
+    created_at: Optional[datetime] = None
 
     class Config:
         from_attributes = True
 
 class Token(BaseModel):
     access_token: str
+    refresh_token: str
     token_type: str
 
 class TicketCreate(BaseModel):

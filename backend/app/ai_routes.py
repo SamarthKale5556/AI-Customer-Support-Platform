@@ -1,7 +1,6 @@
 from fastapi import APIRouter, Depends, HTTPException, BackgroundTasks
 from sqlalchemy.orm import Session
-from . import database, models, schemas
-from .routes import get_module2_user
+from . import database, models, schemas, auth
 from .services import ai_service
 from .notifications import notification_manager
 
@@ -19,7 +18,7 @@ def get_conversation_context(ticket_id: int, db: Session) -> str:
     return context
 
 @router.post("/ai/reply-suggestions/{ticket_id}")
-def get_reply_suggestions(ticket_id: int, current_user: models.User = Depends(get_module2_user), db: Session = Depends(database.get_db)):
+def get_reply_suggestions(ticket_id: int, current_user: models.User = Depends(auth.get_current_user), db: Session = Depends(database.get_db)):
     if current_user.role not in ["Agent", "Admin"]:
         raise HTTPException(status_code=403, detail="Not authorized")
         
@@ -31,7 +30,7 @@ def get_reply_suggestions(ticket_id: int, current_user: models.User = Depends(ge
     return suggestions
 
 @router.post("/ai/analyze-sentiment/{ticket_id}")
-def analyze_ticket_sentiment(ticket_id: int, background_tasks: BackgroundTasks, current_user: models.User = Depends(get_module2_user), db: Session = Depends(database.get_db)):
+def analyze_ticket_sentiment(ticket_id: int, background_tasks: BackgroundTasks, current_user: models.User = Depends(auth.get_current_user), db: Session = Depends(database.get_db)):
     context = get_conversation_context(ticket_id, db)
     if not context:
         return {"sentiment": "Neutral"}
@@ -61,7 +60,7 @@ def analyze_ticket_sentiment(ticket_id: int, background_tasks: BackgroundTasks, 
     return {"sentiment": sentiment}
 
 @router.post("/ai/summarize/{ticket_id}")
-def summarize_ticket(ticket_id: int, current_user: models.User = Depends(get_module2_user), db: Session = Depends(database.get_db)):
+def summarize_ticket(ticket_id: int, current_user: models.User = Depends(auth.get_current_user), db: Session = Depends(database.get_db)):
     if current_user.role not in ["Agent", "Admin"]:
         raise HTTPException(status_code=403, detail="Not authorized")
         

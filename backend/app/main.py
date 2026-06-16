@@ -1,5 +1,7 @@
-from fastapi import FastAPI
+from fastapi import FastAPI, Request
+from fastapi.responses import JSONResponse
 from fastapi.middleware.cors import CORSMiddleware
+import traceback
 from . import models, routes, ai_routes, kb_routes, analytics_routes
 from .database import engine
 
@@ -25,3 +27,12 @@ app.include_router(analytics_routes.router)
 @app.get("/")
 def read_root():
     return {"message": "Welcome to AI-Powered Customer Support Platform API"}
+
+@app.exception_handler(Exception)
+async def global_exception_handler(request: Request, exc: Exception):
+    tb = traceback.format_exc()
+    print("GLOBAL EXCEPTION:", tb)
+    return JSONResponse(
+        status_code=500,
+        content={"detail": "Internal Server Error", "traceback": tb}
+    )

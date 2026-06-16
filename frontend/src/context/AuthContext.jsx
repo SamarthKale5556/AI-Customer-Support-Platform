@@ -7,70 +7,83 @@ export const AuthProvider = ({ children }) => {
   const [user, setUser] = useState(null);
   const [loading, setLoading] = useState(true);
 
+  const fetchUser = async (token) => {
+    try {
+      const response = await api.get('/profile', { 
+        headers: { Authorization: `Bearer ${token}` } 
+      });
+      setUser(response.data);
+      return true;
+    } catch (error) {
+      console.error("Error fetching user profile", error);
+      return false;
+    }
+  };
+
   useEffect(() => {
-    // Check if user is logged in
-    const fetchUser = async () => {
-      const token = localStorage.getItem('token');
-      const savedUser = localStorage.getItem('user');
-      if (token && savedUser) {
-        setUser(JSON.parse(savedUser));
-      } else if (token) {
-        try {
-          const response = await api.get('/profile', { headers: { Authorization: `Bearer ${token}` } });
-          setUser(response.data);
-        } catch (error) {
-          console.error("Error fetching user profile", error);
-          localStorage.removeItem('token');
+    const initializeAuth = async () => {
+      const token = localStorage.getItem('access_token');
+      if (token) {
+        const success = await fetchUser(token);
+        if (!success) {
+          // If token fails, clear session
+          logout();
         }
       }
       setLoading(false);
     };
 
-    fetchUser();
+    initializeAuth();
   }, []);
 
   const login = async (email, password) => {
     try {
-      // 🚨 Direct login feature: completely bypass backend validation to guarantee 100% success rate 🚨
-      let assignedRole = "Customer";
-      if (email.toLowerCase().includes("agent")) assignedRole = "Agent";
-      if (email.toLowerCase().includes("admin")) assignedRole = "Admin";
+      const response = await api.post('/login', { email, password });
+      const { access_token, refresh_token } = response.data;
       
-      const fakeToken = "direct-login-token-" + assignedRole + "-" + Date.now();
-
-      const mockUser = {
-        name: email.split('@')[0],
-        email: email,
-        role: assignedRole,
-        created_at: new Date().toISOString()
-      };
+      localStorage.setItem('access_token', access_token);
+      localStorage.setItem('refresh_token', refresh_token);
       
-      localStorage.setItem('token', fakeToken);
+      // Fetch profile to get role and details
+      const success = await fetchUser(access_token);
       
-      // Fetch the real user object from the backend so it has a valid database ID
-      try {
-        const response = await api.get('/profile', { headers: { Authorization: `Bearer ${fakeToken}` } });
-        localStorage.setItem('user', JSON.stringify(response.data));
-        setUser(response.data);
-      } catch (err) {
-        localStorage.setItem('user', JSON.stringify(mockUser));
-        setUser(mockUser);
+      if (success) {
+        return { success: true };
+      } else {
+        return { success: false, error: "Failed to fetch user profile" };
       }
-      
-      return { success: true };
     } catch (error) {
-      return { success: false, error: "Direct login failed" };
+      console.error("Login Error:", error.response?.data);
+      return { 
+        success: false, 
+        error: error.response?.data?.detail || "Invalid credentials. Please try again." 
+      };
     }
   };
 
-  const register = async (email, password) => {
-    // Redirect to login logic
-    return await login(email, password);
+  const register = async (name, email, password) => {
+    try {
+      // Create account
+      await api.post('/register', { 
+        name, 
+        email, 
+        password,
+        role: 'Customer' // default
+      });
+      
+      return { success: true };
+    } catch (error) {
+      console.error("Registration Error:", error.response?.data);
+      return { 
+        success: false, 
+        error: error.response?.data?.detail || "Failed to create account. Email may be taken." 
+      };
+    }
   };
 
   const logout = () => {
-    localStorage.removeItem('token');
-    localStorage.removeItem('user');
+    localStorage.removeItem('access_token');
+    localStorage.removeItem('refresh_token');
     setUser(null);
   };
 
