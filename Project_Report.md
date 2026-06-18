@@ -30,28 +30,30 @@ Our platform utilizes a cutting-edge, highly responsive technology stack:
 The following diagram illustrates how the different components of the system interact with each other, highlighting the integration of WebSockets for real-time chat and the AI pipeline.
 
 ```mermaid
-architecture-beta
-    group frontend(cloud)[Frontend App]
-    group backend(server)[Backend Services]
-    group ai(cloud)[AI & Database]
-
-    service react(server)[React/Vite] in frontend
-    service fastapi(server)[FastAPI Server] in backend
-    service ws(server)[WebSocket Manager] in backend
+graph TD
+    subgraph Frontend [React / Vite App]
+        UI[User Interface]
+    end
     
-    service db(database)[SQL Database] in ai
-    service chroma(database)[ChromaDB Vector] in ai
-    service gemini(cloud)[Google Gemini API] in ai
-
-    react:R --> L:fastapi
-    react:R <-- L:ws
+    subgraph Backend [FastAPI Server]
+        API[REST API Endpoints]
+        WS[WebSocket Manager]
+    end
     
-    fastapi:R --> L:db
-    fastapi:R --> L:chroma
-    fastapi:B --> T:ws
+    subgraph AI_Database [AI & Data Layer]
+        DB[(SQL Database)]
+        VDB[(ChromaDB)]
+        LLM{Google Gemini}
+    end
     
-    chroma:R --> L:gemini
-    fastapi:R --> L:gemini
+    UI <-->|HTTP Requests| API
+    UI <-->|Live Chat| WS
+    API --> DB
+    API --> VDB
+    WS --> DB
+    
+    VDB -->|Retrieve Rules| LLM
+    API -->|Send Prompt| LLM
 ```
 
 ---
@@ -84,58 +86,52 @@ graph TD
 
 The relational database manages users, tickets, messages, and AI analysis data.
 
-```mermaid
-erDiagram
-    USERS ||--o{ TICKETS : creates
-    USERS ||--o{ MESSAGES : sends
-    TICKETS ||--o{ MESSAGES : contains
-    TICKETS ||--o| AI_ANALYSIS : has
-    MESSAGES ||--o| AI_MESSAGE_DATA : has
-    TICKETS ||--o| TICKET_SETTINGS : configures
+**1. USERS Table**
+| Column | Type | Description |
+| :--- | :--- | :--- |
+| **id** | Integer | Primary Key |
+| **name** | String | Full name |
+| **email** | String | User's email |
+| **password_hash** | String | Encrypted password |
+| **role** | String | Customer, Agent, or Admin |
+| **created_at** | DateTime | Account creation date |
 
-    USERS {
-        int id PK
-        string name
-        string email
-        string password_hash
-        string role "Customer, Agent, Admin"
-        datetime created_at
-    }
+**2. TICKETS Table**
+| Column | Type | Description |
+| :--- | :--- | :--- |
+| **id** | Integer | Primary Key |
+| **user_id** | Integer | Foreign Key (Users) |
+| **assigned_to** | Integer | Foreign Key (Users) |
+| **title** | String | Ticket subject |
+| **description** | Text | Issue details |
+| **status** | String | Open, Pending, Closed |
+| **priority** | String | Low, Medium, High |
 
-    TICKETS {
-        int id PK
-        int user_id FK
-        int assigned_to FK
-        string title
-        text description
-        string status "Open, Pending, Closed"
-        string priority
-        datetime created_at
-    }
+**3. MESSAGES Table**
+| Column | Type | Description |
+| :--- | :--- | :--- |
+| **id** | Integer | Primary Key |
+| **ticket_id** | Integer | Foreign Key (Tickets) |
+| **sender_id** | Integer | Foreign Key (Users) |
+| **message** | Text | Chat content |
+| **timestamp** | DateTime | Time sent |
 
-    MESSAGES {
-        int id PK
-        int ticket_id FK
-        int sender_id FK
-        text message
-        datetime timestamp
-    }
+**4. AI_ANALYSIS Table**
+| Column | Type | Description |
+| :--- | :--- | :--- |
+| **id** | Integer | Primary Key |
+| **ticket_id** | Integer | Foreign Key (Tickets) |
+| **sentiment** | String | Happy, Neutral, Frustrated |
+| **category** | String | Issue category |
+| **summary** | Text | 3-bullet point summary |
 
-    AI_ANALYSIS {
-        int id PK
-        int ticket_id FK
-        string sentiment
-        string category
-        text summary
-    }
-
-    KNOWLEDGE_BASE {
-        int id PK
-        string title
-        text content
-        string source
-    }
-```
+**5. KNOWLEDGE_BASE Table**
+| Column | Type | Description |
+| :--- | :--- | :--- |
+| **id** | Integer | Primary Key |
+| **title** | String | Document title |
+| **content** | Text | Company rules/policies |
+| **source** | String | Origin of document |
 
 ---
 
